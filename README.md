@@ -17,8 +17,8 @@ Datadogのロール情報を取得するPythonスクリプト
 環境変数を設定:
 ```bash
 export DD_SITE="https://api.datadoghq.com"  # リージョンに応じて変更
-export DD_TEST_API_KEY="your_api_key_here"
-export DD_TEST_APP_KEY="your_app_key_here"
+export DD_API_KEY="your_api_key_here"
+export DD_APP_KEY="your_app_key_here"
 ```
 
 **注意**: DD_SITEの値はDatadogのリージョン（サイト）によって異なります。  
