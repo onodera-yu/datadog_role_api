@@ -1,11 +1,32 @@
 """
-List permissions returns "OK" response
+Datadog Role Information
+
+Datadogのロール情報を取得・分析するPythonスクリプト
+
+主な機能:
+- 全権限の一覧表示
+- 全ロールの一覧表示
+- ロール名でのフィルタリング検索
+- 特定ロールの権限詳細表示
+- ロール権限分析（許可/未許可権限の分類・統計）
+
+使用方法:
+    環境変数を設定してスクリプトを実行
+    export DD_SITE="https://api.datadoghq.com"
+    export DD_TEST_API_KEY="your_api_key"
+    export DD_TEST_APP_KEY="your_app_key"
+    export ROLE_DATA_ATTRIBUTES_NAME="Datadog Admin Role"
+    python datadog_roles.py
+
+Author: Your Name
+Version: 1.0
 """
 
 import json
 from os import environ
 from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.v2.api.roles_api import RolesApi
+from datadog_api_client.v1.api.organizations_api import OrganizationsApi
 
 configuration = Configuration(
     host=environ.get("DD_SITE"),
@@ -36,7 +57,7 @@ def save_to_json(data, filename):
         print(f"Debug: Data saved to {filename}")
 
 
-def datadog_list_permissions():
+def dd_list_permissions():
     """
     Datadogで利用可能な全ての権限を一覧表示します。
 
@@ -55,7 +76,7 @@ def datadog_list_permissions():
         return response.to_dict()
 
 
-def datadog_list_roles():
+def dd_list_roles():
     """
     Datadog組織内の全てのロールを一覧表示します。
 
@@ -65,79 +86,167 @@ def datadog_list_roles():
         None
 
     Returns:
-        None
+        dict: ロール一覧のデータ
     """
     with ApiClient(configuration) as api_client:
         api_instance = RolesApi(api_client)
         response = api_instance.list_roles()
         save_to_json(response, "list_roles.json")
+        return response.to_dict()
 
 
-def datadog_list_roles_with_filter():
+def dd_list_roles_with_filter(role_name=None):
     """
-    ROLE_DATA_ATTRIBUTES_NAME環境変数を使用してロール名でフィルタリングしたロールを一覧表示します。
-
-    ROLE_DATA_ATTRIBUTES_NAMEには以下を設定できます：
-    - 標準ロール: "Datadog Admin Role", "Datadog Standard Role", "Datadog Read Only Role"
-    - カスタムロール: 組織で作成した任意のカスタムロール名
-    - 部分一致: "Admin", "Read"などの部分的な名前
-
-    DEBUG=trueの場合、結果はfiltered_roles.jsonファイルに保存されます。
-
-    例:
-        export ROLE_DATA_ATTRIBUTES_NAME="Datadog Admin Role"
+    ロール名でフィルタリングしたロールを一覧表示します。
 
     Args:
-        None
+        role_name (str, optional): フィルタリングするロール名。未指定の場合は環境変数ROLE_DATA_ATTRIBUTES_NAMEを使用
 
     Returns:
-        None
+        dict or None: フィルタリングされたロール一覧のデータ
     """
-    role_filter = environ.get("ROLE_DATA_ATTRIBUTES_NAME")
+    role_filter = role_name or environ.get("ROLE_DATA_ATTRIBUTES_NAME")
     if not role_filter:
-        print("ROLE_DATA_ATTRIBUTES_NAME environment variable not set")
-        return
+        print(
+            "Role name not provided and ROLE_DATA_ATTRIBUTES_NAME environment variable not set"
+        )
+        return None
 
     with ApiClient(configuration) as api_client:
         api_instance = RolesApi(api_client)
         response = api_instance.list_roles(filter=role_filter)
         save_to_json(response, "filtered_roles.json")
+        return response.to_dict()
 
 
-def datadog_list_role_permissions():
+def dd_list_role_permissions(role_id=None):
     """
-    ROLE_DATA_ID環境変数を使用して、特定のロールに許可された権限を一覧表示します。
+    特定のロールに許可された権限を一覧表示します。
 
-    ROLE_DATA_IDは、クエリを実行するロールのUUIDに設定する必要があります。
-    ロールIDは、datadog_list_roles()関数の出力から取得できます。
+    Args:
+        role_id (str, optional): ロールのUUID。未指定の場合は環境変数ROLE_DATA_IDを使用
 
-    DEBUG=trueの場合、結果はrole_permissions.jsonファイルに保存されます。
+    Returns:
+        dict or None: ロール権限のデータ
+    """
+    target_role_id = role_id or environ.get("ROLE_DATA_ID")
+    if not target_role_id:
+        print("Role ID not provided and ROLE_DATA_ID environment variable not set")
+        return None
 
-    例:
-        export ROLE_DATA_ID="12345678-1234-1234-1234-123456789abc"
+    with ApiClient(configuration) as api_client:
+        api_instance = RolesApi(api_client)
+        response = api_instance.list_role_permissions(role_id=target_role_id)
+        save_to_json(response, "role_permissions.json")
+        return response.to_dict()
+
+
+def analyze_role_permissions(role_name, save_json=False):
+    """
+    指定されたロール名の権限を分析し、許可/未許可の権限を整理して出力します。
+
+    Args:
+        role_name (str): 分析するロール名
+        save_json (bool): JSONファイルに結果を保存するかどうか
+
+    Returns:
+        dict: 分析結果
+    """
+    print(f"Analyzing role: {role_name}")
+
+    # 0. 組織情報を取得
+    org_info = dd_list_orgs()
+    org_name = (
+        org_info["orgs"][0]["name"] if org_info and org_info.get("orgs") else "Unknown"
+    )
+
+    # 1. 全権限を取得
+    all_permissions = dd_list_permissions()
+    if not all_permissions:
+        print("Failed to get permissions")
+        return None
+
+    # 2. 指定ロールをフィルタリング
+    filtered_roles = dd_list_roles_with_filter(role_name)
+    if not filtered_roles or not filtered_roles.get("data"):
+        print(f"Role '{role_name}' not found")
+        return None
+
+    role_data = filtered_roles["data"][0]  # 最初のマッチしたロールを使用
+    role_id = role_data["id"]
+
+    print(f"Found role: {role_data['attributes']['name']} (ID: {role_id})")
+
+    # 3. ロールの権限を取得
+    role_permissions = dd_list_role_permissions(role_id)
+    if not role_permissions:
+        print("Failed to get role permissions")
+        return None
+
+    # 4. 権限を突合
+    all_permission_names = {
+        perm["attributes"]["name"] for perm in all_permissions["data"]
+    }
+    granted_permission_names = {
+        perm["attributes"]["name"] for perm in role_permissions["data"]
+    }
+    denied_permission_names = all_permission_names - granted_permission_names
+
+    # 5. 結果を整理
+    result = {
+        "org_name": org_name,
+        "role_name": role_data["attributes"]["name"],
+        "role_id": role_id,
+        "granted_permissions": sorted(list(granted_permission_names)),
+        "denied_permissions": sorted(list(denied_permission_names)),
+        "total_permissions": len(all_permission_names),
+        "granted_count": len(granted_permission_names),
+        "denied_count": len(denied_permission_names),
+    }
+
+    # 結果を出力
+    print(f"\n=== Role Analysis Results ===")
+    print(f"Organization: {result['org_name']}")
+    print(f"Role: {result['role_name']}")
+    print(f"Total permissions: {result['total_permissions']}")
+    print(f"Granted: {result['granted_count']}")
+    print(f"Denied: {result['denied_count']}")
+
+    if save_json:
+        with open("role_analysis.json", "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        print("Analysis result saved to role_analysis.json")
+
+    if DEBUG:
+        print("Debug mode enabled")
+
+    return result
+
+
+def dd_list_orgs():
+    """
+    Datadog組織を一覧表示します。
+
+    DEBUG=trueの場合、結果はlist_orgs.jsonファイルに保存されます。
 
     Args:
         None
 
     Returns:
-        None
+        dict: 組織一覧のデータ
     """
-    role_id = environ.get("ROLE_DATA_ID")
-    if not role_id:
-        print("ROLE_DATA_ID environment variable not set")
-        return
-
     with ApiClient(configuration) as api_client:
-        api_instance = RolesApi(api_client)
-        response = api_instance.list_role_permissions(role_id=role_id)
-        save_to_json(response, "role_permissions.json")
+        api_instance = OrganizationsApi(api_client)
+        response = api_instance.list_orgs()
+        save_to_json(response, "list_orgs.json")
+        return response.to_dict()
 
 
 def main():
-    # datadog_list_permissions()
-    # datadog_list_roles()
-    # datadog_list_roles_with_filter()
-    datadog_list_role_permissions()
+    # 環境変数からロール名を取得、またはデフォルト値を使用
+    role_name = environ.get("ROLE_DATA_ATTRIBUTES_NAME", "Datadog Admin Role")
+    analyze_role_permissions(role_name, save_json=True)
 
 
-main()
+if __name__ == "__main__":
+    main()

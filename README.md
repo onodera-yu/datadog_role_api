@@ -8,6 +8,7 @@ Datadogのロール情報を取得するPythonスクリプト
 - 全ロールの一覧表示
 - ロール名でのフィルタリング検索
 - 特定ロールの権限詳細表示
+- **ロール権限分析**: 指定ロールの許可/未許可権限を分析・整理して表示
 
 ## 使用方法
 
@@ -45,6 +46,37 @@ export ROLE_DATA_ID="12345678-1234-1234-1234-123456789abc"
 ### 4. スクリプト実行
 ```bash
 python datadog_roles.py
+```
+
+## ロール権限分析機能
+
+メイン機能として、指定されたロールの権限を詳細分析します：
+
+1. 指定ロール名から該当ロールを検索
+2. 全権限一覧と突合して許可/未許可権限を分類
+3. 統計情報と共に結果を表示
+4. DEBUG=trueの場合、詳細結果をJSONファイルに保存
+
+### 実行例
+```bash
+# Datadog Admin Roleを分析
+export ROLE_DATA_ATTRIBUTES_NAME="Datadog Admin Role"
+export DEBUG=true
+python datadog_roles.py
+```
+
+### 出力例
+```
+Analyzing role: Datadog Admin Role
+Found role: Datadog Admin Role (ID: 12345678-1234-1234-1234-123456789abc)
+
+=== Role Analysis Results ===
+Organization: onodera
+Role: Datadog Admin Role
+Total permissions: 150
+Granted: 150
+Denied: 0
+Analysis result saved to role_analysis.json
 ```
 
 ## Datadogのロールと権限について
