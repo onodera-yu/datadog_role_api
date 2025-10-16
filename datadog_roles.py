@@ -13,8 +13,8 @@ Datadogのロール情報を取得・分析するPythonスクリプト
 使用方法:
     環境変数を設定してスクリプトを実行
     export DD_SITE="https://api.datadoghq.com"
-    export DD_TEST_API_KEY="your_api_key"
-    export DD_TEST_APP_KEY="your_app_key"
+    export DD_API_KEY="your_api_key"
+    export DD_APP_KEY="your_app_key"
     export ROLE_DATA_ATTRIBUTES_NAME="Datadog Admin Role"
     python datadog_roles.py
 
@@ -31,8 +31,8 @@ from datadog_api_client.v1.api.organizations_api import OrganizationsApi
 configuration = Configuration(
     host=environ.get("DD_SITE"),
     api_key={
-        "apiKeyAuth": environ.get("DD_TEST_API_KEY"),
-        "appKeyAuth": environ.get("DD_TEST_APP_KEY"),
+        "apiKeyAuth": environ.get("DD_API_KEY"),
+        "appKeyAuth": environ.get("DD_APP_KEY"),
     },
 )
 
