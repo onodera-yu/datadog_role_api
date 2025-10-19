@@ -19,6 +19,7 @@ Datadogのロール情報を取得するPythonスクリプト
 export DD_SITE="https://api.datadoghq.com"  # リージョンに応じて変更
 export DD_API_KEY="your_api_key_here"
 export DD_APP_KEY="your_app_key_here"
+export USER_DATA_ATTRIBUTES_EMAIL="your_email@example.com"
 ```
 
 **注意**: DD_SITEの値はDatadogのリージョン（サイト）によって異なります。  
@@ -52,16 +53,21 @@ python datadog_roles.py
 
 メイン機能として、指定されたロールの権限を詳細分析します：
 
-1. 指定ロール名から該当ロールを検索
-2. 全権限一覧と突合して許可/未許可権限を分類
-3. 統計情報と共に結果を表示
-4. DEBUG=trueの場合、詳細結果をJSONファイルに保存
+1. 組織情報を取得
+2. 指定ロール名から該当ロールを検索
+3. 全権限一覧と突合して許可/未許可権限を分類
+4. 統計情報と共に結果を表示
+5. save_json=trueの場合、詳細結果をJSONファイルに保存
 
 ### 実行例
 ```bash
-# Datadog Admin Roleを分析
+# Datadog Admin Roleを分析（JSONファイル出力あり）
 export ROLE_DATA_ATTRIBUTES_NAME="Datadog Admin Role"
+python datadog_roles.py
+
+# デバッグモードも有効にする場合
 export DEBUG=true
+export ROLE_DATA_ATTRIBUTES_NAME="Datadog Admin Role"
 python datadog_roles.py
 ```
 
@@ -71,7 +77,8 @@ Analyzing role: Datadog Admin Role
 Found role: Datadog Admin Role (ID: 12345678-1234-1234-1234-123456789abc)
 
 === Role Analysis Results ===
-Organization: hoge
+User: hoge
+Organization: huga
 Role: Datadog Admin Role
 Total permissions: 150
 Granted: 150

@@ -26,6 +26,7 @@ import json
 from os import environ
 from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.v2.api.roles_api import RolesApi
+from datadog_api_client.v2.api.users_api import UsersApi
 from datadog_api_client.v1.api.organizations_api import OrganizationsApi
 
 configuration = Configuration(
@@ -141,6 +142,52 @@ def dd_list_role_permissions(role_id=None):
         return response.to_dict()
 
 
+def dd_list_users(email=None):
+    """
+    Datadog組織内の全てのユーザーを一覧表示します。
+
+    DEBUG=trueの場合、結果はlist_users.jsonファイルに保存されます。
+
+    Args:
+        None
+
+    Returns:
+        dict: ユーザー一覧のデータ
+    """
+    if not email:
+        print("Email not provided")
+        return None
+
+    with ApiClient(configuration) as api_client:
+        api_instance = UsersApi(api_client)
+        response = api_instance.list_users(filter=email)
+        save_to_json(response, "list_users.json")
+        return response.to_dict()
+
+
+def dd_get_org(public_id=None):
+    """
+    Datadog組織情報を取得します。
+
+    DEBUG=trueの場合、結果はget_orgs.jsonファイルに保存されます。
+
+    Args:
+        None
+
+    Returns:
+        dict: 組織情報のデータ
+    """
+    if not public_id:
+        print("Public ID not provided")
+        return None
+
+    with ApiClient(configuration) as api_client:
+        api_instance = OrganizationsApi(api_client)
+        response = api_instance.get_org(public_id=public_id)
+        save_to_json(response, "get_orgs.json")
+        return response.to_dict()
+
+
 def analyze_role_permissions(role_name, save_json=False):
     """
     指定されたロール名の権限を分析し、許可/未許可の権限を整理して出力します。
@@ -155,10 +202,19 @@ def analyze_role_permissions(role_name, save_json=False):
     print(f"Analyzing role: {role_name}")
 
     # 0. 組織情報を取得
-    org_info = dd_list_orgs()
-    org_name = (
-        org_info["orgs"][0]["name"] if org_info and org_info.get("orgs") else "Unknown"
+    email = environ.get("USER_DATA_ATTRIBUTES_EMAIL")
+    user_info = dd_list_users(email)
+    user_name = (
+        user_info["data"][0]["attributes"]["name"]
+        if user_info and user_info.get("data")
+        else "Unknown"
     )
+    user_org_id = (
+        user_info["data"][0]["relationships"]["org"]["data"]["id"]
+        if user_info and user_info.get("data")
+        else None
+    )
+    org_name = dd_get_org(user_org_id)["org"]["name"] if user_org_id else "Unknown"
 
     # 1. 全権限を取得
     all_permissions = dd_list_permissions()
@@ -194,6 +250,7 @@ def analyze_role_permissions(role_name, save_json=False):
 
     # 5. 結果を整理
     result = {
+        "user_name": user_name,
         "org_name": org_name,
         "role_name": role_data["attributes"]["name"],
         "role_id": role_id,
@@ -206,6 +263,7 @@ def analyze_role_permissions(role_name, save_json=False):
 
     # 結果を出力
     print(f"\n=== Role Analysis Results ===")
+    print(f"User: {result['user_name']}")
     print(f"Organization: {result['org_name']}")
     print(f"Role: {result['role_name']}")
     print(f"Total permissions: {result['total_permissions']}")
@@ -221,25 +279,6 @@ def analyze_role_permissions(role_name, save_json=False):
         print("Debug mode enabled")
 
     return result
-
-
-def dd_list_orgs():
-    """
-    Datadog組織を一覧表示します。
-
-    DEBUG=trueの場合、結果はlist_orgs.jsonファイルに保存されます。
-
-    Args:
-        None
-
-    Returns:
-        dict: 組織一覧のデータ
-    """
-    with ApiClient(configuration) as api_client:
-        api_instance = OrganizationsApi(api_client)
-        response = api_instance.list_orgs()
-        save_to_json(response, "list_orgs.json")
-        return response.to_dict()
 
 
 def main():
